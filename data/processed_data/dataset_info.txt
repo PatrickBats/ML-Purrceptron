@@ -1,0 +1,27 @@
+Balanced Cat Breed Dataset
+==================================================
+
+Breeds: 8
+Target samples per breed: 2500
+Random seed: 42
+
+Split Ratios:
+  Train: 70%
+  Val:   15%
+  Test:  15%
+
+Actual Counts:
+  Train: 11541
+  Val:   2472
+  Test:  2477
+  Total: 16490
+
+Breeds:
+  - Bengal
+  - Bombay
+  - British Shorthair
+  - Maine Coon
+  - Persian
+  - Ragdoll
+  - Russian Blue
+  - Siamese

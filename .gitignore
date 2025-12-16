@@ -1,0 +1,13 @@
+
+Datacleaning/Kaggle/images/
+Datacleaning/Kaggle/data/
+Datacleaning/OxfordIIT/images/
+Datacleaning/OxfordIIT/data/
+
+*.pth
+*.pt
+experiments/
+from_scratch/experiments/
+transfer_learning/experiments/
+resnet_no_tuning/experiments/
+
