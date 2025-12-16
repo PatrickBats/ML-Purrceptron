@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import sys
 from pathlib import Path
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from shared.models import CatCNN
@@ -12,7 +11,6 @@ from shared.data_augmentation import CatBreedAugmentation
 
 
 def load_model(checkpoint_path='experiments/from_scratch_5layer/checkpoints/best.pth'):
-    # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location='cpu')
 
     breed_names = [
@@ -45,12 +43,10 @@ def predict_image(image_path, model, breed_names, device='cpu'):
     image = Image.open(image_path).convert('RGB')
     input_tensor = transform(image).unsqueeze(0).to(device)
 
-    # Predict
     with torch.no_grad():
         output = model(input_tensor)
         probs = F.softmax(output, dim=1)[0]
 
-    # Get prediction
     predicted_idx = probs.argmax().item()
     predicted_breed = breed_names[predicted_idx]
     confidence = probs[predicted_idx].item()

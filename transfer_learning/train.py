@@ -19,23 +19,16 @@ class TransferLearningTrainer:
     def __init__(self, config):
         self.config = config
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(f"Using device: {self.device}")
-
-        # Setup directories
         self.experiment_dir = Path('experiments') / config['experiment_name']
         self.checkpoint_dir = self.experiment_dir / 'checkpoints'
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize model
         self._build_model()
 
-        # Setup data
         self._setup_data()
 
-        # Setup training components
         self._setup_training()
 
-        # Metrics tracking
         self.metrics = {
             'train_loss': [],
             'train_acc': [],
@@ -47,18 +40,14 @@ class TransferLearningTrainer:
         }
 
     def _build_model(self):
-        print("\nLoading pretrained ResNet50...")
         self.model = models.resnet50(pretrained=True)
 
-        # Freeze early layers (optional - can experiment with this)
         if self.config.get('freeze_backbone', False):
-            print("Freezing backbone layers...")
             for param in self.model.parameters():
                 param.requires_grad = False
 
-        # Replace final layer with dropout for regularization
         num_features = self.model.fc.in_features
-        dropout_rate = self.config.get('dropout', 0.5)  # Default 0.5
+        dropout_rate = self.config.get('dropout', 0.5)
 
         self.model.fc = nn.Sequential(
             nn.Dropout(p=dropout_rate),
@@ -66,9 +55,7 @@ class TransferLearningTrainer:
         )
 
         self.model = self.model.to(self.device)
-        print(f"Added dropout layer (p={dropout_rate}) before final layer")
 
-        # Count trainable parameters
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in self.model.parameters())
         print(f"Total parameters: {total_params:,}")
@@ -77,9 +64,8 @@ class TransferLearningTrainer:
     def _setup_data(self):
         base_dir = Path(__file__).parent.parent / 'data'
 
-        # Create datasets with transfer learning augmentation (moderate)
         train_aug = CatBreedAugmentation(mode='transfer_learning')
-        val_aug = CatBreedAugmentation(mode='transfer_learning')  # Use val transforms
+        val_aug = CatBreedAugmentation(mode='transfer_learning')
 
         train_dataset = CatBreedDataset(
             csv_file=str(base_dir / 'processed_data/train.csv'),
@@ -91,7 +77,6 @@ class TransferLearningTrainer:
             transform=val_aug.get_val_transform()
         )
 
-        # Create dataloaders
         self.train_loader = DataLoader(
             train_dataset,
             batch_size=self.config['batch_size'],
@@ -116,14 +101,12 @@ class TransferLearningTrainer:
     def _setup_training(self):
         self.criterion = nn.CrossEntropyLoss()
 
-        # Lower learning rate for fine-tuning
         self.optimizer = optim.Adam(
             self.model.parameters(),
             lr=self.config['learning_rate'],
             weight_decay=self.config['weight_decay']
         )
 
-        # Learning rate scheduler
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
             mode='max',
@@ -132,7 +115,6 @@ class TransferLearningTrainer:
             min_lr=1e-7
         )
 
-        # Mixed precision training
         self.scaler = torch.cuda.amp.GradScaler() if self.device.type == 'cuda' else None
 
     def train_epoch(self, epoch):
@@ -149,7 +131,6 @@ class TransferLearningTrainer:
 
             self.optimizer.zero_grad()
 
-            # Mixed precision training
             if self.scaler:
                 with torch.cuda.amp.autocast():
                     outputs = self.model(images)
@@ -164,13 +145,11 @@ class TransferLearningTrainer:
                 loss.backward()
                 self.optimizer.step()
 
-            # Statistics
             running_loss += loss.item() * images.size(0)
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
-            # Update progress bar
             pbar.set_postfix({
                 'loss': f'{loss.item():.4f}',
                 'acc': f'{100.*correct/total:.2f}%'
@@ -214,13 +193,10 @@ class TransferLearningTrainer:
             'metrics': self.metrics
         }
 
-        # Save latest checkpoint
         torch.save(checkpoint, self.checkpoint_dir / 'latest.pth')
 
-        # Save best checkpoint
         if is_best:
             torch.save(checkpoint, self.checkpoint_dir / 'best.pth')
-            print(f"  ✓ Saved best model (val_acc: {self.metrics['best_val_acc']:.2f}%)")
 
     def save_metrics(self):
         metrics_file = self.experiment_dir / 'metrics.json'
@@ -228,52 +204,41 @@ class TransferLearningTrainer:
             json.dump(self.metrics, f, indent=2)
 
     def train(self):
-        print(f"\n{'='*60}")
-        print(f"Starting Transfer Learning Training - {self.config['experiment_name']}")
-        print(f"{'='*60}\n")
+     
 
         start_time = time.time()
 
         for epoch in range(self.config['num_epochs']):
-            # Train
             train_loss, train_acc = self.train_epoch(epoch)
 
-            # Validate
             val_loss, val_acc = self.validate()
 
-            # Update learning rate
             self.scheduler.step(val_acc)
             current_lr = self.optimizer.param_groups[0]['lr']
 
-            # Update metrics
             self.metrics['train_loss'].append(train_loss)
             self.metrics['train_acc'].append(train_acc)
             self.metrics['val_loss'].append(val_loss)
             self.metrics['val_acc'].append(val_acc)
             self.metrics['learning_rates'].append(current_lr)
 
-            # Check if best model
             is_best = val_acc > self.metrics['best_val_acc']
             if is_best:
                 self.metrics['best_val_acc'] = val_acc
                 self.metrics['best_epoch'] = epoch
 
-            # Print epoch summary
             print(f"\nEpoch {epoch+1}/{self.config['num_epochs']} Summary:")
             print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
             print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}%")
             print(f"  LR: {current_lr:.2e}")
 
-            # Save checkpoint
             self.save_checkpoint(epoch, is_best)
             self.save_metrics()
 
-            # Early stopping
             if current_lr < 1e-7:
                 print("\nLearning rate too small. Stopping training.")
                 break
 
-        # Training complete
         elapsed = time.time() - start_time
         print(f"\n{'='*60}")
         print(f"Training Complete!")
@@ -284,23 +249,21 @@ class TransferLearningTrainer:
 
 
 def main():
-    # Training configuration
     config = {
         'experiment_name': 'resnet50_transfer',
         'num_classes': 8,
         'batch_size': 32,
         'num_epochs': 50,
-        'learning_rate': 1e-4,  # Lower LR for fine-tuning
+        'learning_rate': 1e-4,
         'weight_decay': 1e-4,
         'num_workers': 4,
-        'freeze_backbone': False,  # Set True to only train final layer
-        'dropout': 0.5  # Dropout rate before final layer (0.5 = 50%)
+        'freeze_backbone': False,
+        'dropout': 0.5
     }
 
     print("\nTransfer Learning Configuration:")
     print(json.dumps(config, indent=2))
 
-    # Create trainer and start training
     trainer = TransferLearningTrainer(config)
     trainer.train()
 

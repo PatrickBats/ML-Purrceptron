@@ -12,37 +12,27 @@ import json
 def load_model(checkpoint_path=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Default checkpoint path
     if checkpoint_path is None:
         checkpoint_path = Path(__file__).parent / 'experiments/resnet50_transfer/checkpoints/best.pth'
 
     print(f"Loading model from: {checkpoint_path}")
 
-    # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location=device)
     config = checkpoint['config']
 
-    # Build model architecture
-    model = models.resnet50(pretrained=False)  # Don't need pretrained weights
+    model = models.resnet50(pretrained=False)
     num_features = model.fc.in_features
     model.fc = nn.Linear(num_features, config['num_classes'])
 
-    # Load trained weights
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
 
-    # Get breed names from data
     base_dir = Path(__file__).parent.parent / 'data'
     import pandas as pd
     df = pd.read_csv(base_dir / 'processed_data/train.csv')
     breed_names = sorted(df['breed'].unique())
 
-    print(f"Model loaded successfully!")
-    print(f"  Device: {device}")
-    print(f"  Breeds: {len(breed_names)}")
-    print(f"  Best validation accuracy: {checkpoint['metrics']['best_val_acc']:.2f}%")
-    print(f"  Trained epochs: {checkpoint['epoch'] + 1}")
 
     return model, breed_names, config
 
@@ -60,20 +50,16 @@ def predict_image(image_path, model, breed_names):
     device = next(model.parameters()).device
     transform = get_transforms()
 
-    # Load and preprocess image
     image = Image.open(image_path).convert('RGB')
     input_tensor = transform(image).unsqueeze(0).to(device)
 
-    # Make prediction
     with torch.no_grad():
         outputs = model(input_tensor)
         probabilities = torch.softmax(outputs, dim=1)[0]
 
-    # Get predicted class
     confidence, predicted_idx = torch.max(probabilities, 0)
     predicted_breed = breed_names[predicted_idx.item()]
 
-    # Create probability dictionary
     all_probs = {breed: prob.item() for breed, prob in zip(breed_names, probabilities)}
 
     return predicted_breed, confidence.item(), all_probs
@@ -84,11 +70,9 @@ def predict_batch(image_paths, model, breed_names, batch_size=32):
     transform = get_transforms()
     results = []
 
-    # Process in batches
     for i in range(0, len(image_paths), batch_size):
         batch_paths = image_paths[i:i+batch_size]
 
-        # Load and preprocess batch
         images = []
         for path in batch_paths:
             image = Image.open(path).convert('RGB')
@@ -96,12 +80,10 @@ def predict_batch(image_paths, model, breed_names, batch_size=32):
 
         batch_tensor = torch.stack(images).to(device)
 
-        # Make predictions
         with torch.no_grad():
             outputs = model(batch_tensor)
             probabilities = torch.softmax(outputs, dim=1)
 
-        # Extract results
         for j, path in enumerate(batch_paths):
             confidence, predicted_idx = torch.max(probabilities[j], 0)
             predicted_breed = breed_names[predicted_idx.item()]
@@ -111,14 +93,12 @@ def predict_batch(image_paths, model, breed_names, batch_size=32):
 
 
 def main():
-    # Load model
     model, breed_names, config = load_model()
 
     print("\nAvailable breeds:")
     for i, breed in enumerate(breed_names):
         print(f"  {i}: {breed}")
 
-    # Example prediction (replace with your image path)
     base_dir = Path(__file__).parent.parent / 'data'
     test_csv = base_dir / 'processed_data/test.csv'
 
@@ -126,14 +106,12 @@ def main():
         import pandas as pd
         df = pd.read_csv(test_csv)
 
-        # Pick a random test image
         sample = df.sample(1).iloc[0]
         image_path = base_dir / 'Datacleaning' / sample['dataset'] / 'images' / sample['breed'] / sample['filename']
 
         print(f"\nTesting on: {image_path}")
         print(f"True breed: {sample['breed']}")
 
-        # Make prediction
         predicted_breed, confidence, all_probs = predict_image(str(image_path), model, breed_names)
 
         print(f"\nPrediction: {predicted_breed}")

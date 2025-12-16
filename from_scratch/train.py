@@ -101,7 +101,6 @@ class FromScratchTrainer:
 
         self.criterion = nn.CrossEntropyLoss()
 
-        # Optimizer
         if self.config['optimizer'] == 'adam':
             self.optimizer = optim.Adam(
                 self.model.parameters(),
@@ -122,9 +121,7 @@ class FromScratchTrainer:
                 weight_decay=self.config['weight_decay']
             )
 
-        print(f"Optimizer: {self.config['optimizer'].upper()}")
-        print(f"Learning rate: {self.config['learning_rate']}")
-        print(f"Weight decay: {self.config['weight_decay']}")
+    
 
         if self.config['scheduler'] == 'plateau':
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -133,7 +130,6 @@ class FromScratchTrainer:
                 factor=0.5,
                 patience=5
             )
-            print("Scheduler: ReduceLROnPlateau")
         elif self.config['scheduler'] == 'cosine':
             self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,
@@ -224,11 +220,9 @@ class FromScratchTrainer:
             'metrics': self.metrics
         }
 
-        # Save latest checkpoint
         latest_path = self.checkpoint_dir / 'latest.pth'
         torch.save(checkpoint, latest_path)
 
-        # Save best checkpoint
         if is_best:
             best_path = self.checkpoint_dir / 'best.pth'
             torch.save(checkpoint, best_path)
@@ -240,7 +234,6 @@ class FromScratchTrainer:
         for epoch in range(1, self.config['epochs'] + 1):
             epoch_start = time.time()
 
-            # Train
             train_loss, train_acc = self.train_epoch(epoch)
 
             val_loss, val_acc = self.validate()
@@ -255,7 +248,7 @@ class FromScratchTrainer:
             self.metrics['epoch_times'].append(epoch_time)
             self.metrics['learning_rates'].append(current_lr)
 
-            
+
 
             is_best = val_acc > self.best_val_acc
             if is_best:
@@ -281,17 +274,14 @@ class FromScratchTrainer:
         print(f"Total time: {total_time/60:.1f} minutes")
         print(f"Best val accuracy: {self.best_val_acc:.2f}% (epoch {self.best_epoch})")
 
-        # Save final metrics
         self.save_metrics()
 
     def save_metrics(self):
         metrics_path = self.output_dir / 'metrics.json'
         with open(metrics_path, 'w') as f:
             json.dump(self.metrics, f, indent=2)
-        print(f"\n aved metrics to {metrics_path}")
 
     def test(self):
-        # Load best model
         best_checkpoint = torch.load(self.checkpoint_dir / 'best.pth')
         self.model.load_state_dict(best_checkpoint['model_state_dict'])
 
@@ -317,46 +307,36 @@ class FromScratchTrainer:
 
 
 def main():
-    # Configuration
     config = {
-        # Model
         'image_size': 224,
         'dropout_rate': 0.5,
 
-        # Training
         'batch_size': 64,
         'epochs': 150,
         'learning_rate': 1e-3,
         'weight_decay': 1e-4,
-        'optimizer': 'adamw',  # 'adam', 'adamw', or 'sgd'
-        'scheduler': 'plateau',  # 'plateau', 'cosine', or None
-        'use_amp': True,  # Mixed precision training
+        'optimizer': 'adamw',
+        'scheduler': 'plateau',
+        'use_amp': True,
 
-        # Regularization
         'early_stopping': True,
         'patience': 15,
 
-        # Data
         'num_workers': 4,
 
-        # Output
         'output_dir': 'experiments/from_scratch_5layer'
     }
 
     for key, value in config.items():
         print(f"  {key:20s}: {value}")
 
-    # Create trainer
     trainer = FromScratchTrainer(config)
 
-    # Setup
     trainer.setup_data()
     trainer.setup_model()
 
-    # Train
     trainer.train()
 
-    # Test
     test_acc = trainer.test()
 
 

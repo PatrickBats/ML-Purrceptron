@@ -8,7 +8,6 @@ class CatCNN(nn.Module):
     def __init__(self, num_classes=8, dropout_rate=0.5):
         super(CatCNN, self).__init__()
 
-        # Convolutional layers
         self.conv1 = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
@@ -44,11 +43,8 @@ class CatCNN(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
-        # Calculate flattened size: 224 -> 112 -> 56 -> 28 -> 14 -> 7
-        # 512 channels * 7 * 7 = 25088
         self.flatten_size = 512 * 7 * 7
 
-        # Fully connected layers
         self.fc1 = nn.Sequential(
             nn.Linear(self.flatten_size, 1024),
             nn.ReLU(inplace=True),
@@ -58,12 +54,11 @@ class CatCNN(nn.Module):
         self.fc2 = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(inplace=True),
-            nn.Dropout(dropout_rate * 0.6)  # Less dropout in second FC layer
+            nn.Dropout(dropout_rate * 0.6)
         )
 
         self.fc3 = nn.Linear(512, num_classes)
 
-        # Initialize weights
         self._initialize_weights()
 
     def _initialize_weights(self):
@@ -86,7 +81,7 @@ class CatCNN(nn.Module):
         x = self.conv4(x)
         x = self.conv5(x)
 
-        x = x.view(x.size(0), -1)  # Flatten
+        x = x.view(x.size(0), -1)
 
         x = self.fc1(x)
         x = self.fc2(x)
@@ -106,15 +101,12 @@ class ResNetTransfer(nn.Module):
     def __init__(self, num_classes=8, freeze_backbone=False):
         super(ResNetTransfer, self).__init__()
 
-        # Load pretrained ResNet50
         self.resnet = models.resnet50(pretrained=True)
 
-        # Optionally freeze backbone layers
         if freeze_backbone:
             for param in self.resnet.parameters():
                 param.requires_grad = False
 
-        # Replace final FC layer
         num_features = self.resnet.fc.in_features
         self.resnet.fc = nn.Sequential(
             nn.Dropout(0.3),
@@ -141,7 +133,6 @@ def get_model(model_type='from_scratch', num_classes=8, **kwargs):
 
 
 if __name__ == "__main__":
-    # Test models
     model_scratch = CatCNN(num_classes=8)
     model_transfer = ResNetTransfer(num_classes=8)
 

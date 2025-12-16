@@ -21,19 +21,16 @@ def load_model(checkpoint_path, num_classes=8):
 
     checkpoint = torch.load(checkpoint_path, map_location=device)
 
-    # Build model architecture
     model = CatCNN(num_classes=num_classes, dropout_rate=0.5)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
 
-    print(f"Loaded model from epoch {checkpoint['epoch'] + 1}")
 
-    # Try to get best validation accuracy (different checkpoint formats)
     if 'metrics' in checkpoint and 'best_val_acc' in checkpoint['metrics']:
-        print(f"Best validation accuracy: {checkpoint['metrics']['best_val_acc']:.2f}%")
+        print(f"Best val accuracy: {checkpoint['metrics']['best_val_acc']:.2f}%")
     elif 'best_val_acc' in checkpoint:
-        print(f"Best validation accuracy: {checkpoint['best_val_acc']:.2f}%")
+        print(f"Best val accuracy: {checkpoint['best_val_acc']:.2f}%")
 
     return model, device, checkpoint
 
@@ -46,11 +43,9 @@ def compute_confusion_matrix(model, dataloader, device, num_classes=8):
             images = images.to(device)
             labels = labels.to(device)
 
-            # Forward pass
             outputs = model(images)
             _, predicted = outputs.max(1)
 
-            # Update confusion matrix
             for true_label, pred_label in zip(labels.cpu().numpy(), predicted.cpu().numpy()):
                 confusion_matrix[true_label][pred_label] += 1
 
@@ -59,7 +54,6 @@ def compute_confusion_matrix(model, dataloader, device, num_classes=8):
 
 def plot_confusion_matrix(confusion_matrix, breed_names, output_path, normalize=False):
     if normalize:
-        # Normalize by row (true label) to show percentages
         confusion_matrix_norm = confusion_matrix.astype('float') / confusion_matrix.sum(axis=1)[:, np.newaxis]
         cm_to_plot = confusion_matrix_norm
         fmt = '.2%'
@@ -69,10 +63,8 @@ def plot_confusion_matrix(confusion_matrix, breed_names, output_path, normalize=
         fmt = 'd'
         title = 'Confusion Matrix\nFrom-Scratch CNN'
 
-    # Create figure
     plt.figure(figsize=(14, 12))
 
-    # Plot heatmap with larger fonts
     sns.heatmap(
         cm_to_plot,
         annot=True,
@@ -84,7 +76,7 @@ def plot_confusion_matrix(confusion_matrix, breed_names, output_path, normalize=
         square=True,
         linewidths=0.5,
         linecolor='gray',
-        annot_kws={'fontsize': 14}  # Larger annotation font
+        annot_kws={'fontsize': 14}
     )
 
     plt.title(title, fontsize=18, pad=20, fontweight='bold')
@@ -94,14 +86,12 @@ def plot_confusion_matrix(confusion_matrix, breed_names, output_path, normalize=
     plt.yticks(rotation=0, fontsize=14)
     plt.tight_layout()
 
-    # Save
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved: {output_path}")
     plt.close()
 
 
 def analyze_confusions(confusion_matrix, breed_names):
-    # Find most confused pairs (excluding diagonal)
     confusion_pairs = []
     for i in range(len(breed_names)):
         for j in range(len(breed_names)):
@@ -110,10 +100,9 @@ def analyze_confusions(confusion_matrix, breed_names):
                     breed_names[i],
                     breed_names[j],
                     confusion_matrix[i][j],
-                    confusion_matrix[i][j] / confusion_matrix[i].sum() * 100  # percentage
+                    confusion_matrix[i][j] / confusion_matrix[i].sum() * 100
                 ))
 
-    # Sort by count
     confusion_pairs.sort(key=lambda x: x[2], reverse=True)
 
     for true_breed, pred_breed, count, percentage in confusion_pairs[:10]:
@@ -134,27 +123,19 @@ def analyze_confusions(confusion_matrix, breed_names):
 
 
 def main():
-    # Paths
     checkpoint_path = Path('experiments/from_scratch_5layer/checkpoints/best.pth')
     output_dir = Path('experiments/from_scratch_5layer')
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if not checkpoint_path.exists():
-        print(f"\nERROR: Checkpoint not found at {checkpoint_path}")
-        print("Please make sure you have trained the from-scratch model first.")
-        return
+    
 
-    # Load model
     model, device, checkpoint = load_model(checkpoint_path)
 
-    # Breed names
     breed_names = [
         'Bengal', 'Bombay', 'British Shorthair', 'Maine Coon',
         'Persian', 'Ragdoll', 'Russian Blue', 'Siamese'
     ]
 
-    # Setup test data
-    print("\nLoading test dataset...")
     aug = CatBreedAugmentation(mode='from_scratch')
     base_dir = Path(__file__).parent.parent / 'data'
 
@@ -172,11 +153,8 @@ def main():
     )
 
 
-    # Compute confusion matrix
-    print("\nComputing confusion matrix...")
     confusion_matrix = compute_confusion_matrix(model, test_loader, device, num_classes=8)
 
-    # Save confusion matrix data
     cm_data = {
         'confusion_matrix': confusion_matrix.tolist(),
         'breed_names': breed_names,
@@ -189,8 +167,6 @@ def main():
 
     print(f"\nOverall Test Accuracy: {cm_data['overall_accuracy']:.2f}%")
 
-    # Plot raw counts
-    print("\nGenerating confusion matrix visualizations...")
     plot_confusion_matrix(
         confusion_matrix,
         breed_names,
@@ -198,7 +174,6 @@ def main():
         normalize=False
     )
 
-    # Plot normalized (percentages)
     plot_confusion_matrix(
         confusion_matrix,
         breed_names,
@@ -206,7 +181,6 @@ def main():
         normalize=True
     )
 
-    # Analyze confusions
     confusion_pairs = analyze_confusions(confusion_matrix, breed_names)
 
 

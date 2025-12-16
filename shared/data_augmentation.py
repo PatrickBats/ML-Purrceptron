@@ -16,16 +16,12 @@ class CatBreedAugmentation:
         else:
             raise ValueError(f"Invalid mode: {mode}. Use 'from_scratch' or 'transfer_learning'")
 
-        # Validation/test transforms are the same for both modes
         self.val_transform = self._get_val_transform()
 
     def _get_heavy_augmentation(self):
         return transforms.Compose([
-            # Resize and crop
             transforms.Resize((int(self.image_size * 1.1), int(self.image_size * 1.1))),
             transforms.RandomCrop(self.image_size),
-
-            # Geometric transforms
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomRotation(degrees=25),
             transforms.RandomAffine(
@@ -35,53 +31,34 @@ class CatBreedAugmentation:
                 shear=10
             ),
             transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
-
-            # Color augmentation
             transforms.ColorJitter(
                 brightness=0.3,
                 contrast=0.3,
                 saturation=0.3,
                 hue=0.1
             ),
-
-            # Random grayscale (occasionally)
             transforms.RandomGrayscale(p=0.1),
-
-            # Convert to tensor
             transforms.ToTensor(),
-
-            # Normalize (ImageNet stats - good starting point)
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225]
             ),
-
-            # Random erasing (cutout)
             transforms.RandomErasing(p=0.3, scale=(0.02, 0.15), ratio=(0.3, 3.3)),
         ])
 
     def _get_moderate_augmentation(self):
         return transforms.Compose([
-            # Resize and crop
             transforms.Resize((int(self.image_size * 1.1), int(self.image_size * 1.1))),
             transforms.RandomCrop(self.image_size),
-
-            # Basic geometric transforms
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomRotation(degrees=15),
-
-            # Mild color augmentation
             transforms.ColorJitter(
                 brightness=0.2,
                 contrast=0.2,
                 saturation=0.2,
                 hue=0.05
             ),
-
-            # Convert to tensor
             transforms.ToTensor(),
-
-            # Normalize (ImageNet stats)
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225]
@@ -112,33 +89,25 @@ def visualize_augmentations(image_path, num_samples=5, mode='from_scratch'):
     from PIL import Image
     import matplotlib.pyplot as plt
 
-    # Load image
     img = Image.open(image_path).convert('RGB')
 
-    # Get augmentation
     aug = CatBreedAugmentation(mode=mode)
     transform = aug.get_train_transform()
 
-    # Create figure
     fig, axes = plt.subplots(1, num_samples + 1, figsize=(3 * (num_samples + 1), 3))
 
-    # Original image
     axes[0].imshow(img)
     axes[0].set_title('Original')
     axes[0].axis('off')
 
-    # Augmented images
     for i in range(num_samples):
-        # Apply augmentation
         augmented_tensor = transform(img)
 
-        # Denormalize for visualization
         mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
         denorm_img = augmented_tensor * std + mean
         denorm_img = torch.clamp(denorm_img, 0, 1)
 
-        # Convert to numpy and transpose
         img_np = denorm_img.numpy().transpose(1, 2, 0)
 
         axes[i + 1].imshow(img_np)
@@ -153,6 +122,4 @@ def visualize_augmentations(image_path, num_samples=5, mode='from_scratch'):
 
 
 if __name__ == "__main__":
-    # Example: visualize augmentations on a sample image
-    # visualize_augmentations('path/to/cat/image.jpg', num_samples=5, mode='from_scratch')
     pass
